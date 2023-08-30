@@ -1,0 +1,57 @@
+module FRMIDICon
+in  idx: Int,     # input index
+    iv: Int,      # input value
+    iv_last: Int  # last input value
+out ot : OType,   # MIDI packet type
+    ox : Int,     # MIDI packet param 1
+    oy : Int      # MIDI packet param 2
+use Std
+
+# MIDI packet type
+type OType = TNone | TCC | TNoteOn | TNoteOff
+
+# play mode
+node init[False] play = idx of
+    # button1 (D16)
+    9 -> if iv == 0 && iv_last != 0 then !play@last 
+         else play@last,
+    _ -> play@last
+
+# MIDI packet
+node (ot, ox, oy) = idx of
+    # pot0 (A6) -> CC 56 (AMP ATTACK)
+    0 -> if iv != iv_last then (TCC, 56, iv) else (TNone, 0, 0),
+    # pot1 (A3) -> CC 57 (AMP DECAY)
+    1 -> if iv != iv_last then (TCC, 57, iv) else (TNone, 1, 0),
+    # pot2 (A2) -> CC 58 (AMP SUSTAIN)
+    2 -> if iv != iv_last then (TCC, 58, iv) else (TNone, 2, 0),
+    # pot3 (A1) -> CC 59 (AMP RELEASE)
+    3 -> if iv != iv_last then (TCC, 59, iv) else (TNone, 3, 0),
+    # pot4 (A0) -> CC 25 (OSC MIX)
+    4 -> if iv != iv_last then (TCC, 25, iv) else (TNone, 4, 0),
+    # pot5 (A7) -> CC 16 (FILTER CUTOFF)
+    5 -> if iv != iv_last then (TCC, 16, iv) else (TNone, 5, 0),
+    # pot6 (A8) -> CC 17 (FILTER RESONANCE)
+    6 -> if iv != iv_last then (TCC, 17, iv) else (TNone, 6, 0),
+    # pot7 (A9) -> CC 82 (LFO OSC AMT)
+    7 -> if iv != iv_last then (TCC, 82, iv / 2 + 64) 
+                          else (TNone, 7, 0),
+    # button0 (D15) -> note 45 (C2)
+    8 -> if iv == 0 && iv_last != 0 then (TNoteOn, 45, 127) 
+         else if iv != 0 && iv_last == 0 then (TNoteOff, 45, 0)
+         else (TNone, 8, 0),
+    # button1 (D16) -> none
+    9 -> (TNone, 9, 0),
+    # button2 (D14) -> CC 121 RESET
+    10 -> if iv != 0 && iv_last == 0 then (TCC, 123, 0)
+                                     else (TNone, 10, 0),
+    # play
+    11 -> if play then (TNoteOn, iv, 127) else (TNone, 11, 0),
+    12 -> if play || note_on@last then (TNoteOff, iv, 0) else (TNone, 12, 0),
+    # ivalid index
+    _ -> (TNone, -1, 0)
+
+node init[False] note_on = idx of
+    11 -> if play then True else note_on@last,
+    12 -> if play || note_on@last then False else note_on@last,
+    _ -> note_on@last
